@@ -1,22 +1,38 @@
 #!/usr/bin/env python3
 
-__all__ = ['Bar']
-
 import subprocess
-import threading
+import shlex
 import asyncio
 import signal
 import functools
 import mdzbar.utils as utils
 
+__all__ = ['Bar']
+
 
 class Bar:
-    def __init__(self, font='Terminus', bg='#000000', fg='#ffffff',
-                length=0, size=24, edge='top', edge_offset=0):
+    def __init__(self,
+                font='Monospace',
+                bg='#000000',
+                fg='#ffffff',
+                length=0,
+                size=20,
+                edge='top',
+                edge_offset=0,
+                content_align='right'):
         self._font = font
         self._bg_color = bg
         self._fg_color = fg
+        self._content_align = content_align
+        self._calculate_bar_geometry(edge,edge_offset,length,size)
+        self._blocks = []
+        self._loop = asyncio.get_event_loop()
 
+    '''
+    Calculates bar's position and dimensions from
+    edge, offset, length and size
+    '''
+    def _calculate_bar_geometry(self, edge, edge_offset, length, size):
         (sw,sh) = utils.get_screen_size()
         if edge == 'top':
             x = 0
@@ -42,7 +58,6 @@ class Bar:
         self._y = y
         self._w = w
         self._h = h
-        self._blocks = []
 
     '''
     Adds the block to the bar
@@ -62,46 +77,43 @@ class Bar:
     which handles events from the backend, the blocks and operating system
     '''
     def run(self):
-        args = [
-                'dzen2',
-                '-fn', self._font,
-                '-bg', self._bg_color,
-                '-fg', self._fg_color,
-                #'-l', str(1), #lines
-                '-x', str(self._x),
-                '-y', str(self._y),
-                '-w', str(self._w),
-                '-h', str(self._h),
-                ]
-        args = ['cat', '>', 'f']
+        cmd = 'dzen2 -fn %s -bg %s -fg %s -x %d -y %d -w %d -h %d -ta %s' %(
+                self._font,
+                self._bg_color,
+                self._fg_color,
+                self._x,
+                self._y,
+                self._w,
+                self._h,
+                self._content_align[0])
+        args = shlex.split(cmd)
+
         print('Running: ' + ' '.join(args))
         # execute child process
         self._backend = subprocess.Popen(args,
                                          stdin=subprocess.PIPE,
-                                         stdout=subprocess.PIPE,
-                                         universal_newlines=True,
-                                         shell=True)
+                                         stdout=subprocess.PIPE)
 
-        loop = asyncio.get_event_loop()
         # setup reader
-        loop.add_reader(self._backend.stdout, functools.partial(Bar._cb_read, self))
+        self._loop.add_reader(self._backend.stdout,
+                              functools.partial(Bar._cb_read, self))
 
         # setup signal handlers
-        self._evloop = loop
         for signame in ('SIGINT', 'SIGTERM'):
-            loop.add_signal_handler(
-                    getattr (signal, signame),
+            self._loop.add_signal_handler(
+                    getattr(signal, signame),
                     functools.partial(Bar._cb_terminate, self, signame))
 
         # activate all blocks
-        loop.call_soon(functools.partial(Bar._cb_activate_all, self))
+        self._loop.call_soon(functools.partial(Bar._cb_activate_all, self))
 
         print('Event loop started!')
         try:
-            loop.run_forever()
+            self._loop.run_forever()
         finally:
+            print('Handled even loop exception')
             self._cb_deactivate_all()
-            loop.close()
+            self._loop.close()
 
 
     def _cb_activate_all(self):
@@ -123,12 +135,14 @@ class Bar:
         merged = ''.join(block_content_list)
         merged += '\n'
         print("dzen string : "+ merged)
-        self._backend.stdin.write(merged)
+        f = self._backend.stdin
+        f.write(bytes(merged,'UTF-8'))
+        f.flush()
 
     def _cb_read(self):
-        print('cb_read')
+        # print('cb_read')
         buffer = self._backend.stdout.read()
-        print(buffer)
+        # print(buffer)
 
     '''
     Callback which is called when application receives SIGTERM or SIGINT
@@ -136,7 +150,7 @@ class Bar:
     def _cb_terminate(self, signame):
         print("Got signal %s: exit" % signame)
         self._backend.terminate()
-        self._evloop.stop()
+        self._loop.stop()
 
 
 
