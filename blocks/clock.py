@@ -5,10 +5,9 @@ from ..block import Block
 import datetime
 
 class Clock(Block):
-    def __init__(self, fmt='%a %d %b %Y  %W.%w  %H:%M:%S', *args):
-        Block.__init__(self, args)
+    def __init__(self, fmt='%a, %d %b %Y, %W week, %H:%M:%S', *args, **kwargs):
+        Block.__init__(self, update_interval=1, *args, **kwargs)
         self._fmt = fmt
-        self._interval = 1
 
     def update(self):
         print('Clock.update')
