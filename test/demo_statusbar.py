@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+#
+# mdzbar: Modular statusbar using dzen2 as backend
+#
+# Copyright (C) 2016 Oleksandr Dunayevskyy
+# See LICENSE file for license details.
+#
+
 
 #
 # mdzbar feature demonstration
