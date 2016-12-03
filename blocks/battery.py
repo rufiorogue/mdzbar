@@ -21,7 +21,7 @@ CHR_BAT_100  = chr(0xf240)
 CHR_CHARGING = chr(0xf0e7)
 
 # set to True to simulate battery charge/discharge
-SIMULATION = True
+SIMULATION = False
 
 '''
  returns dict with keys:
