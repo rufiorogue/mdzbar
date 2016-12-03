@@ -137,7 +137,7 @@ class Bar:
     def _cb_changed(self, *args):
         print("Triggered changed event")
         # create a long string from data of all blocks merged into one
-        block_content_list = [str(x) for x in self._blocks]
+        block_content_list = [x.get_brief_status() for x in self._blocks]
         merged = ''.join(block_content_list)
         merged += '\n'
         print("dzen string : "+ merged)

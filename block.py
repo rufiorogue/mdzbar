@@ -42,7 +42,10 @@ class Block:
     '''
     def __init__(self, bg=None, fg=None, align='right', padding=None,
                  update_interval=None):
-        self._message = ''
+        self._brief_status = ''
+        self._brief_status_source = ''
+        self._detailed_status = ''
+        self._detailed_status_source = ''
         self._bg = bg
         self._fg = fg
         self._align = align
@@ -65,8 +68,9 @@ class Block:
     '''
     def activate(self):
         self._active =True
-        # schedule first process() to be called ASAP
-        self._timer = threading.Timer(0, functools.partial(Block._process, self))
+        # schedule first block update ASAP
+        self._timer = threading.Timer(0, \
+                    functools.partial(Block._on_block_update_timer, self))
         self._timer.start()
 
     '''
@@ -78,6 +82,25 @@ class Block:
             self._timer.cancel()
         if self._blinkingtimer:
             self._blinkingtimer.cancel()
+
+    def _on_block_update_timer(self):
+        # calls overridden block update()
+        update_result = self.update()
+        if isinstance(update_result, list):
+            [self._brief_status_source, self._detailed_status_source] = \
+                update_result
+        else:
+            self._brief_status_source = update_result
+            self._detailed_status_source = ''
+
+        # if we are not done yet, reschedule the timer
+        if self._active and self._interval > 0:
+            self._timer = threading.Timer(self._interval, \
+                          functools.partial(Block._on_block_update_timer, self))
+            self._timer.start()
+        # rebuild formatted block from source strings
+        self._rebuild_status_strings()
+
 
     '''
     Enables/disables blinking effect: background is flashed red each blink_interval
@@ -100,12 +123,16 @@ class Block:
     def _on_blink_timer(self):
         self._blinkingstate = not self._blinkingstate
         self._create_blink_timer()
-        # TODO: optimize: only bg attribute needs to be updated here
-        # therefore we don't need to run the whole thing.
-        self._process()
+        # rebuild formatted block from source strings
+        self._rebuild_status_strings()
 
 
-    def _process(self):
+    '''
+    Rebuilds _brief_status and _detailed_status
+    from _brief_status_source and _detailed_status_source respectively
+    (adds formatting and color attributes)
+    '''
+    def _rebuild_status_strings(self):
         content = ''
         bg = Block.blink_bg if self._blinkingstate else self._bg
         if bg:
@@ -114,34 +141,25 @@ class Block:
             content += '^fg(' + self._fg + ')'
         for i in range(0, self._padding[0]):
             content += ' '
-
-        # update() is defined in derived classes
-        content += self.update()
-
+        content += self._brief_status_source
         for i in range(0, self._padding[1]):
             content += ' '
         if bg:
             content += '^bg()'
         if self._fg:
             content += '^fg()'
-
-        self._message = content
-
+        self._brief_status = content
         self.on_changed.fire()
-
-        # if we are not done yet, schedule a timer to be run that will
-        # call _process() for us again
-        if self._active and self._interval > 0:
-            self._timer = threading.Timer(self._interval,
-                                          functools.partial(Block._process, self))
-            self._timer.start()
 
 
     '''
     Get the formatted data for the block
     '''
-    def __str__(self):
-        return self._message
+    def get_brief_status(self):
+        return self._brief_status
+
+    def get_detailed_status(self):
+        return self._detailed_status
 
     '''
     @return string : block content
