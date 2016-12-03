@@ -20,6 +20,9 @@ CHR_BAT_75   = chr(0xf241)
 CHR_BAT_100  = chr(0xf240)
 CHR_CHARGING = chr(0xf0e7)
 
+# set to True to simulate battery charge/discharge
+SIMULATION = True
+
 '''
  returns dict with keys:
  level   = 0..1
@@ -63,11 +66,18 @@ def select_battery_icon(level):
 
 class Battery(Block):
     def __init__(self,  *args, **kwargs):
-        Block.__init__(self, update_interval=10, *args, **kwargs)
+        update_interval = 2 if SIMULATION else 10
+        Block.__init__(self, update_interval=update_interval, *args, **kwargs)
+        if SIMULATION:
+            self.simulator = BatterySimulation()
 
     def update(self):
         print('Battery.update')
-        battery_info = read_battery_info()
+        if SIMULATION:
+            battery_info = self.simulator.get_battery_info()
+            print(battery_info)
+        else:
+            battery_info = read_battery_info()
         is_charging = battery_info['mode'] == 'Charging'
         is_discharging = battery_info['mode'] == 'Discharging'
         level = battery_info['level']
@@ -87,4 +97,27 @@ class Battery(Block):
                                 utils.seconds_to_hms(battery_info['time']*3600))
         self.set_blink(is_discharging and level <= 0.1)
         return brief_status + detailed_status
+
+class BatterySimulation:
+    def __init__(self):
+        self._mode = 'Discharging'
+        self._level = 1
+        self._step = 0.05
+        self._time = 0
+    def get_battery_info(self):
+        self.tick()
+        return { 'mode': self._mode, 'level': self._level, 'time': self._time }
+    def tick(self):
+        if self._mode == 'Discharging':
+            if self._level < self._step:
+                self._mode = 'Charging'
+            else:
+                self.add_step(-self._step)
+        elif self._mode == 'Charging':
+            if self._level > 1 - self._step:
+                self._mode = 'Discharging'
+            else:
+                self.add_step(+self._step)
+    def add_step(self, step):
+        self._level = round(self._level + step, 2)
 
