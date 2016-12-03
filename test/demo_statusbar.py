@@ -23,6 +23,7 @@ from mdzbar.block import Block
 from mdzbar.blocks.clock import Clock
 from mdzbar.blocks.statictext import StaticText
 from mdzbar.blocks.separator import Separator
+from mdzbar.blocks.battery import Battery
 
 #
 # create the bar
@@ -45,9 +46,12 @@ blinking_text.set_blink(True)
 
 separator = Separator(size=20)
 
+battery = Battery()
+
 #
 # pack the blocks in the bar
 #
+bar.add_block(battery)
 bar.add_block(blinking_text)
 bar.add_block(text)
 bar.add_block(separator)
